@@ -1,4 +1,5 @@
 const PAPER_TRADING_URL = 'https://paper-api.alpaca.markets';
+const MARKET_DATA_URL = 'https://data.alpaca.markets';
 
 function getHeaders() {
   const apiKey = process.env.ALPACA_API_KEY;
@@ -33,12 +34,45 @@ async function request(path, options = {}) {
   return data;
 }
 
+async function requestMarketData(path) {
+  const response = await fetch(`${MARKET_DATA_URL}${path}`, {
+    headers: getHeaders(),
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.message || `A Alpaca recusou a solicitação (${response.status}).`);
+  }
+
+  return data;
+}
+
 export function getPaperAccount() {
   return request('/v2/account');
 }
 
 export function listPaperOrders(status = 'open') {
   return request(`/v2/orders?status=${encodeURIComponent(status)}&direction=desc`);
+}
+
+export function getStockBars(symbol = 'AAPL', limit = 60) {
+  const normalizedSymbol = String(symbol).toUpperCase();
+  if (!/^[A-Z.]{1,10}$/.test(normalizedSymbol)) {
+    throw new Error('Informe um símbolo de ação válido.');
+  }
+
+  const query = new URLSearchParams({
+    timeframe: '1Min',
+    limit: String(limit),
+    feed: 'iex',
+    sort: 'desc',
+    start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    end: new Date().toISOString(),
+  });
+  return requestMarketData(`/v2/stocks/${normalizedSymbol}/bars?${query}`).then((data) => ({
+    ...data,
+    bars: [...(data.bars || [])].reverse(),
+  }));
 }
 
 export function submitPaperOrder({ side, type, quantity, limitPrice }) {

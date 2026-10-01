@@ -1,12 +1,21 @@
 import { Router } from 'express';
 import {
   cancelPaperOrder,
+  getStockBars,
   getPaperAccount,
   listPaperOrders,
   submitPaperOrder,
 } from './alpaca.mjs';
 
 const router = Router();
+
+router.get('/market-data/:symbol/bars', async (request, response) => {
+  try {
+    response.json(await getStockBars(request.params.symbol));
+  } catch (error) {
+    sendError(response, error);
+  }
+});
 
 function sendError(response, error) {
   console.error('Erro na API de Paper Trading:', error.message);

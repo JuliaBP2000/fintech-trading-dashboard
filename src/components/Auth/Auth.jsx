@@ -1,15 +1,19 @@
 import { useState } from "react";
 import "./Auth.css";
 import { setUser } from "../../store/userStore";
+import { useTranslation } from "../../i18n";
+import LanguageSwitcher from "../LanguageSwitcher/LanguageSwitcher";
 
 const API_URL = "http://localhost:3001/api/auth";
 
 export default function Auth({ onAuthenticated }) {
+  const { t } = useTranslation();
   const [mode, setMode] = useState("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [resetNotice, setResetNotice] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function submit(event) {
@@ -33,8 +37,16 @@ export default function Auth({ onAuthenticated }) {
       );
       const data = await response.json();
 
-      if (!response.ok)
-        throw new Error(data.message || "Não foi possível continuar.");
+      if (!response.ok) {
+        const errorKeys = {
+          "Informe um e-mail válido.": "invalidEmail",
+          "A senha deve ter pelo menos 8 caracteres.": "shortPassword",
+          "Informe seu nome para continuar.": "missingName",
+          "Já existe uma conta com este e-mail.": "existingAccount",
+          "E-mail ou senha incorretos.": "invalidLogin",
+        };
+        throw new Error(t(errorKeys[data.message] || "genericError"));
+      }
 
       const nextUser = data.user;
       setUser(nextUser);
@@ -48,19 +60,20 @@ export default function Auth({ onAuthenticated }) {
 
   return (
     <main className="auth-page">
+      <LanguageSwitcher className="auth-language-switcher" />
       <section className="auth-card">
         <p className="auth-brand">A</p>
         <p className="auth-eyebrow">AURORA INVEST</p>
-        <h1>{mode === "login" ? "Bem-vinda de volta" : "Crie sua conta"}</h1>
+        <h1>{mode === "login" ? t("loginWelcome") : t("createAccount")}</h1>
         <p className="auth-description">
           {mode === "login"
-            ? "Entre para acompanhar seus investimentos."
-            : "Comece a organizar seus investimentos em um só lugar."}
+            ? t("loginDescription")
+            : t("registerDescription")}
         </p>
         <form onSubmit={submit}>
           {mode === "register" && (
             <label>
-              Nome
+              {t("name")}
               <input
                 type="text"
                 autoComplete="name"
@@ -72,7 +85,7 @@ export default function Auth({ onAuthenticated }) {
           )}
 
           <label>
-            E-mail
+            {t("email")}
             <input
               type="email"
               autoComplete="email"
@@ -82,7 +95,7 @@ export default function Auth({ onAuthenticated }) {
             />
           </label>
           <label>
-            Senha
+            {t("password")}
             <input
               type="password"
               autoComplete={
@@ -94,6 +107,20 @@ export default function Auth({ onAuthenticated }) {
               required
             />
           </label>
+          {mode === "login" && (
+            <button
+              className="auth-forgot-password"
+              type="button"
+              onClick={() => setResetNotice(true)}
+            >
+              {t("forgotPassword")}
+            </button>
+          )}
+          {resetNotice && mode === "login" && (
+            <p className="auth-reset-notice" role="status">
+              {t("passwordResetUnavailable")}
+            </p>
+          )}
           {error && (
             <p className="auth-error" role="alert">
               {error}
@@ -101,10 +128,10 @@ export default function Auth({ onAuthenticated }) {
           )}
           <button type="submit" disabled={isSubmitting}>
             {isSubmitting
-              ? "Aguarde..."
+              ? t("wait")
               : mode === "login"
-                ? "Entrar"
-                : "Criar conta"}
+                ? t("login")
+                : t("register")}
           </button>
         </form>
         <button
@@ -113,11 +140,12 @@ export default function Auth({ onAuthenticated }) {
           onClick={() => {
             setMode(mode === "login" ? "register" : "login");
             setError("");
+            setResetNotice(false);
           }}
         >
           {mode === "login"
-            ? "Ainda não tem uma conta? Cadastre-se"
-            : "Já tem uma conta? Entre"}
+            ? t("registerPrompt")
+            : t("loginPrompt")}
         </button>
       </section>
     </main>

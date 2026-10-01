@@ -1,49 +1,92 @@
 import React, { useMemo, useState } from "react";
 import "./Boleta.css";
+import { useTranslation } from "../../i18n";
 
-const formatCurrency = (value) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
-    value,
-  );
+const formatCurrency = (value, language) =>
+  new Intl.NumberFormat(language, { style: "currency", currency: "USD" }).format(value);
 
 export default function Boleta({
-  initialSide = "Compra",
+  initialSide = "buy",
   assetLabel = "AAPL",
   onSubmit,
+  onCancelOppositeOrders,
 }) {
+  const { language, t } = useTranslation();
   const [side, setSide] = useState(initialSide);
-  const [type, setType] = useState("Limite");
+  const [type, setType] = useState("limit");
   const [quantity, setQuantity] = useState(1);
   const [price, setPrice] = useState("228.20");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResolvingWashTrade, setIsResolvingWashTrade] = useState(false);
+  const [isWashTrade, setIsWashTrade] = useState(false);
+  const [error, setError] = useState("");
 
   const orderValue = useMemo(
     () => Number(quantity || 0) * Number(price || 0),
     [quantity, price],
   );
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
 
-    if (!Number(quantity) || !Number(price)) {
+    if (!Number(quantity) || (type === "limit" && !Number(price))) {
       return;
     }
 
-    onSubmit?.({
-      side,
-      type,
-      quantity: Number(quantity),
-      price: Number(price),
-      total: orderValue,
-      asset: assetLabel,
-    });
+    setError("");
+    setIsSubmitting(true);
+    try {
+      await onSubmit?.({
+        side,
+        type,
+        quantity: Number(quantity),
+        price: Number(price),
+        total: orderValue,
+        asset: assetLabel,
+      });
+    } catch (submitError) {
+      if (/wash trade/i.test(submitError.message)) {
+        setIsWashTrade(true);
+        setError(t("washTradeDetected"));
+        return;
+      }
+      setError(submitError.message || t("orderFailed"));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function cancelOppositeOrders() {
+    setIsResolvingWashTrade(true);
+    try {
+      const cancelledCount = await onCancelOppositeOrders?.({
+        side,
+        type,
+        quantity: Number(quantity),
+        price: Number(price),
+        asset: assetLabel,
+      });
+      setIsWashTrade(false);
+      setError(cancelledCount ? "" : t("washTradeNoConflicts"));
+    } catch (resolveError) {
+      setIsWashTrade(false);
+      setError(resolveError.message || t("cancelFailed"));
+    } finally {
+      setIsResolvingWashTrade(false);
+    }
+  }
+
+  function clearError() {
+    setError("");
+    setIsWashTrade(false);
   }
 
   return (
     <section className="card order-card boleta-card">
       <div className="section-heading">
         <div>
-          <h2>Nova ordem</h2>
-          <p>Envie uma boleta para {assetLabel}</p>
+          <h2>{t("newOrder")}</h2>
+          <p>{t("sendOrderFor", { asset: assetLabel })}</p>
         </div>
       </div>
 
@@ -51,64 +94,91 @@ export default function Boleta({
         <div className="segmented">
           <button
             type="button"
-            onClick={() => setSide("Compra")}
-            className={side === "Compra" ? "buy active" : ""}
+            onClick={() => {
+              setSide("buy");
+              clearError();
+            }}
+            className={side === "buy" ? "buy active" : ""}
           >
-            Comprar
+            {t("buy")}
           </button>
           <button
             type="button"
-            onClick={() => setSide("Venda")}
-            className={side === "Venda" ? "sell active" : ""}
+            onClick={() => {
+              setSide("sell");
+              clearError();
+            }}
+            className={side === "sell" ? "sell active" : ""}
           >
-            Vender
+            {t("sell")}
           </button>
         </div>
 
         <label>
-          Boleta
+          {t("orderType")}
           <select
             value={type}
-            onChange={(event) => setType(event.target.value)}
+            onChange={(event) => {
+              setType(event.target.value);
+              clearError();
+            }}
           >
-            <option>Limite</option>
-            <option>Mercado</option>
+            <option value="limit">{t("limit")}</option>
+            <option value="market">{t("market")}</option>
           </select>
         </label>
 
         <div className="input-row">
           <label>
-            Quantidade
+            {t("quantity")}
             <input
               type="number"
               min="1"
               value={quantity}
-              onChange={(event) => setQuantity(event.target.value)}
+              onChange={(event) => {
+                setQuantity(event.target.value);
+                clearError();
+              }}
             />
           </label>
 
           <label>
-            Preço (USD)
+            {t("priceUsd")}
             <input
               type="number"
               step="0.01"
               min="0.01"
               value={price}
-              onChange={(event) => setPrice(event.target.value)}
+              onChange={(event) => {
+                setPrice(event.target.value);
+                clearError();
+              }}
             />
           </label>
         </div>
 
         <div className="order-total">
-          <span>Valor estimado</span>
-          <strong>{formatCurrency(orderValue)}</strong>
+          <span>{t("estimatedValue")}</span>
+          <strong>{formatCurrency(orderValue, language)}</strong>
         </div>
 
+        {error && <p className="boleta-error" role="alert">{error}</p>}
+        {isWashTrade && onCancelOppositeOrders && (
+          <button
+            className="resolve-wash-trade"
+            type="button"
+            onClick={cancelOppositeOrders}
+            disabled={isResolvingWashTrade}
+          >
+            {isResolvingWashTrade ? t("cancellingOrders") : t("cancelOppositeOrders")}
+          </button>
+        )}
         <button
-          className={`submit-order ${side === "Venda" ? "sell-order" : ""}`}
+          className={`submit-order ${side === "sell" ? "sell-order" : ""}`}
           type="submit"
+          disabled={isSubmitting}
         >
-          Revisar e enviar boleta
+          {isSubmitting ? t("sendingOrder") : t("reviewSend")}
         </button>
       </form>
     </section>

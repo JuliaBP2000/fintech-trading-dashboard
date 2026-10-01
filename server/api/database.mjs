@@ -53,6 +53,17 @@ export async function createUser(name, email, passwordHash) {
   return rows[0];
 }
 
+export async function updateUserProfile(userId, name, passwordHash = null) {
+  const { rows } = await pool.query(
+    `UPDATE users
+     SET name = $2, password_hash = COALESCE($3, password_hash)
+     WHERE id = $1
+     RETURNING id, name, email`,
+    [userId, name, passwordHash],
+  );
+  return rows[0];
+}
+
 export async function createSession(userId, tokenHash, expiresAt) {
   await pool.query(
     "INSERT INTO sessions (user_id, token_hash, expires_at) VALUES ($1, $2, $3)",

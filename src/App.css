@@ -1,2 +1,8 @@
 .app { min-height: 100vh; }
+.app.sidebar-closed .dashboard { padding-left: 80px; }
 .app-loading { min-height: 100vh; display: grid; place-items: center; color: var(--color-text-muted); font-size: 14px; }
+
+@media (max-width: 700px) {
+	.app .dashboard { padding: 24px 16px; }
+	.app.sidebar-closed .dashboard { padding: 64px 16px 24px; }
+}

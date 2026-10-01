@@ -11,6 +11,7 @@ import {
   deleteSession,
   findUserByEmail,
   findUserBySession,
+  updateUserProfile,
 } from "./database.mjs";
 
 const router = Router();
@@ -58,7 +59,7 @@ function clearSessionCookie(response) {
   );
 }
 
-function validateCredentials(email, password, name = "") {
+function validateCredentials(email, password, name = "", requireName = false) {
   const normalizedEmail = String(email || "")
     .trim()
     .toLowerCase();
@@ -73,7 +74,7 @@ function validateCredentials(email, password, name = "") {
     throw new Error("A senha deve ter pelo menos 8 caracteres.");
   }
 
-  if (!normalizedName) {
+  if (requireName && !normalizedName) {
     throw new Error("Informe seu nome para continuar.");
   }
 
@@ -119,6 +120,7 @@ router.post("/register", async (request, response) => {
       request.body.email,
       request.body.password,
       request.body.name,
+      true,
     );
 
     if (await findUserByEmail(email)) {
@@ -149,6 +151,43 @@ router.post("/login", async (request, response) => {
     }
 
     response.json({ user: await startSession(response, user) });
+  } catch (error) {
+    response.status(400).json({ message: error.message });
+  }
+});
+
+router.patch("/profile", requireAuth, async (request, response) => {
+  try {
+    const name = String(request.body.name || "").trim();
+    const newPassword = String(request.body.newPassword || "");
+
+    if (!name || name.length > 80) {
+      return response.status(400).json({ message: "Informe um nome válido." });
+    }
+
+    let passwordHash = null;
+    if (newPassword) {
+      const currentPassword = String(request.body.currentPassword || "");
+      if (!currentPassword) {
+        return response.status(400).json({
+          message: "Informe a senha atual para alterar a senha.",
+        });
+      }
+      if (newPassword.length < 8) {
+        return response.status(400).json({
+          message: "A senha deve ter pelo menos 8 caracteres.",
+        });
+      }
+
+      const user = await findUserByEmail(request.user.email);
+      if (!user || !verifyPassword(currentPassword, user.password_hash)) {
+        return response.status(403).json({ message: "Senha atual incorreta." });
+      }
+      passwordHash = hashPassword(newPassword);
+    }
+
+    const user = await updateUserProfile(request.user.id, name, passwordHash);
+    response.json({ user });
   } catch (error) {
     response.status(400).json({ message: error.message });
   }

@@ -1,26 +1,27 @@
 import React, { useEffect, useRef, useState } from "react";
 import "./Menu.css";
-import { clearUser, useUserStore } from "../../store/userStore";
-
-const defaultItems = [
-  { icon: "fi fi-rr-user", label: "Meu perfil" },
-  { icon: "fi fi-rr-settings-sliders", label: "Configurações" },
-  { icon: "fi fi-rr-sign-out-alt", label: "Sair", danger: true },
-];
+import UserAccountDialog from "./UserAccountDialog";
+import { clearUser, setUser, useUserStore } from "../../store/userStore";
+import { useTranslation } from "../../i18n";
 
 export default function Menu({
-  items = defaultItems,
-  triggerLabel = "Perfil",
+  items,
+  triggerLabel,
   className = "",
 }) {
+  const { t } = useTranslation();
   const { user } = useUserStore();
   const [isOpen, setIsOpen] = useState(false);
+  const [isAccountOpen, setIsAccountOpen] = useState(false);
   const menuRef = useRef(null);
 
   const userName =
     user?.name || (user?.email ? user.email.split("@")[0] : "Usuário");
-  const userRole = "Conta pessoal";
   const initials = userName.charAt(0).toUpperCase();
+  const menuItems = items || [
+    { icon: "fi fi-rr-edit", label: t("editAccount"), action: "edit-account" },
+    { icon: "fi fi-rr-sign-out-alt", label: t("logout"), danger: true },
+  ];
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -34,6 +35,12 @@ export default function Menu({
   }, []);
 
   async function handleAction(item) {
+    if (item.action === "edit-account") {
+      setIsOpen(false);
+      setIsAccountOpen(true);
+      return;
+    }
+
     if (item.danger) {
       try {
         await fetch("http://localhost:3001/api/auth/logout", {
@@ -58,7 +65,7 @@ export default function Menu({
         type="button"
         className="user-menu-trigger"
         onClick={() => setIsOpen((current) => !current)}
-        aria-label={triggerLabel}
+        aria-label={triggerLabel || t("profile")}
         aria-expanded={isOpen}
       >
         <span className="user-menu-avatar">{initials}</span>
@@ -69,18 +76,18 @@ export default function Menu({
         <div
           className="user-menu-panel"
           role="menu"
-          aria-label="Menu do usuário"
+          aria-label={t("userMenu")}
         >
           <div className="user-menu-header">
             <div className="user-menu-avatar large">{initials}</div>
             <div>
               <strong>{userName}</strong>
-              <small>{userRole}</small>
+              <small>{t("personalAccount")}</small>
             </div>
           </div>
 
           <ul className="user-menu-list">
-            {items.map((item) => (
+            {menuItems.map((item) => (
               <li key={item.label}>
                 <button
                   type="button"
@@ -94,6 +101,13 @@ export default function Menu({
             ))}
           </ul>
         </div>
+      )}
+      {isAccountOpen && (
+        <UserAccountDialog
+          user={user}
+          onClose={() => setIsAccountOpen(false)}
+          onUpdated={setUser}
+        />
       )}
     </div>
   );

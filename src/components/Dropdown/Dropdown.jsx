@@ -1,15 +1,18 @@
 import React from "react";
 import "./Dropdown.css";
+import { useTranslation } from "../../i18n";
 
 export default function Dropdown({
   label,
   value,
   onChange,
   options = [],
-  placeholder = "Selecione",
+  placeholder,
   className = "",
   name,
 }) {
+  const { t } = useTranslation();
+  const resolvedPlaceholder = placeholder || t("select");
   const selectValue = value ?? "";
 
   return (
@@ -21,11 +24,11 @@ export default function Dropdown({
           value={selectValue}
           onChange={onChange}
           name={name}
-          aria-label={label || name || placeholder}
+          aria-label={label || name || resolvedPlaceholder}
         >
-          {!selectValue && placeholder ? (
+          {!selectValue && resolvedPlaceholder ? (
             <option value="" disabled>
-              {placeholder}
+              {resolvedPlaceholder}
             </option>
           ) : null}
 
